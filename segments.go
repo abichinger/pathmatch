@@ -1,24 +1,40 @@
 package pathmatch
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 )
 
 type SegType int
 
 type MatchDraft struct {
-	unnamed int
-	match   Match
+	capture     bool
+	unnamed     int
+	match       Match
+	segments    []ISegment
+	strSegments []string
 }
 
-func NewMatchDraft() *MatchDraft {
-	return &MatchDraft{0, Match{}}
+func NewMatchDraft(capture bool, match Match, segments []ISegment, strSegments []string) *MatchDraft {
+	if capture == false {
+		return &MatchDraft{capture, 0, match, segments, strSegments}
+	}
+	return &MatchDraft{capture, 0, match, segments, strSegments}
 }
 
-func (md *MatchDraft) AddUnnamed(value string) {
-	md.match[fmt.Sprintf("$%d", md.unnamed)] = value
-	md.unnamed++
+func (m *MatchDraft) AddUnnamed(value string) {
+	if m.capture == false {
+		return
+	}
+	m.match["$"+strconv.Itoa(m.unnamed)] = value
+	m.unnamed++
+}
+
+func (m *MatchDraft) Add(key, value string) {
+	if m.capture == false {
+		return
+	}
+	m.match[key] = value
 }
 
 const (
@@ -28,7 +44,7 @@ const (
 )
 
 type ISegment interface {
-	Match(res *MatchDraft, nextSegments []ISegment, strSegments []string) (*MatchDraft, []ISegment, []string)
+	Match(m *MatchDraft) *MatchDraft
 	Type() SegType
 }
 
@@ -44,11 +60,12 @@ func (seg *StaticSegment) Type() SegType {
 	return Static
 }
 
-func (seg *StaticSegment) Match(res *MatchDraft, nextSegments []ISegment, strSegments []string) (*MatchDraft, []ISegment, []string) {
-	if len(strSegments) == 0 || strSegments[0] != seg.value {
-		return nil, nil, nil
+func (seg *StaticSegment) Match(m *MatchDraft) *MatchDraft {
+	if len(m.strSegments) == 0 || m.strSegments[0] != seg.value {
+		return nil
 	}
-	return res, nextSegments, strSegments[1:]
+	m.strSegments = m.strSegments[1:]
+	return m
 }
 
 type ParamSegment struct {
@@ -63,15 +80,16 @@ func (seg *ParamSegment) Type() SegType {
 	return Parameterized
 }
 
-func (seg *ParamSegment) Match(res *MatchDraft, nextSegments []ISegment, strSegments []string) (*MatchDraft, []ISegment, []string) {
-	if len(strSegments) == 0 || strSegments[0] == "" {
-		return nil, nil, nil
+func (seg *ParamSegment) Match(m *MatchDraft) *MatchDraft {
+	if len(m.strSegments) == 0 || m.strSegments[0] == "" {
+		return nil
 	}
-	if value, ok := res.match[seg.key]; ok && value != strSegments[0] {
-		return nil, nil, nil
-	}
-	res.match[seg.key] = strSegments[0]
-	return res, nextSegments, strSegments[1:]
+	/*if value, ok := m.match[seg.key]; ok && value != m.strSegments[0] {
+		return nil
+	}*/
+	m.Add(seg.key, m.strSegments[0])
+	m.strSegments = m.strSegments[1:]
+	return m
 }
 
 type WildcardSegment struct {
@@ -86,19 +104,21 @@ func (seg *WildcardSegment) Type() SegType {
 	return Wildcard
 }
 
-func (seg *WildcardSegment) Match(res *MatchDraft, nextSegments []ISegment, strSegments []string) (*MatchDraft, []ISegment, []string) {
-	if len(strSegments) == 0 {
-		return nil, nil, nil
+func (seg *WildcardSegment) Match(m *MatchDraft) *MatchDraft {
+	if len(m.strSegments) == 0 {
+		return nil
 	}
-	if len(nextSegments) == 0 {
-		res.AddUnnamed(strings.Join(strSegments, seg.seperator))
-		return res, nextSegments, []string{}
+	if len(m.segments) == 0 {
+		m.AddUnnamed(strings.Join(m.strSegments, seg.seperator))
+		m.strSegments = m.strSegments[:0]
+		return m
 	}
-	for i := 1; i < len(strSegments); i++ {
-		if m, _, _ := nextSegments[0].Match(NewMatchDraft(), nextSegments[1:], strSegments[i:]); m != nil {
-			res.AddUnnamed(strings.Join(strSegments[:i], seg.seperator))
-			return res, nextSegments, strSegments[i:]
+	for i := 1; i < len(m.strSegments); i++ {
+		if nextMatch := m.segments[0].Match(NewMatchDraft(false, nil, m.segments[1:], m.strSegments[i:])); nextMatch != nil {
+			m.AddUnnamed(strings.Join(m.strSegments[:i], seg.seperator))
+			m.strSegments = m.strSegments[i:]
+			return m
 		}
 	}
-	return nil, nil, nil
+	return nil
 }

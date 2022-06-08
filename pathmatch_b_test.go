@@ -59,6 +59,7 @@ func BenchmarkMatchString(b *testing.B) {
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
+				//_ = r.MatchString(benchmark.str)
 				_ = r.FindStringSubmatch(benchmark.str)
 			}
 		})
@@ -69,7 +70,8 @@ func BenchmarkMatchString(b *testing.B) {
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = p.MatchString(benchmark.str)
+				//_ = p.Match(benchmark.str)
+				_ = p.FindSubmatch(benchmark.str)
 			}
 		})
 	}

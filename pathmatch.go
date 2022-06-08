@@ -12,10 +12,11 @@ type Path struct {
 	Suffix    string
 	Wildcard  string
 	Segments  []ISegment
+	match     Match
 }
 
 func Compile(path string, options ...Option) (*Path, error) {
-	p := &Path{"/", ":", "", "*", []ISegment{}}
+	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0)}
 	for _, option := range options {
 		if err := option(p); err != nil {
 			return nil, err
@@ -37,16 +38,25 @@ func Compile(path string, options ...Option) (*Path, error) {
 	return p, nil
 }
 
-func (p *Path) MatchString(s string) Match {
-	draft := NewMatchDraft()
-	var segments []ISegment
-	segments = append(segments, p.Segments...)
-	strSegments := strings.Split(s, p.Seperator)
+func (p *Path) Match(s string) bool {
+	m := p.getMatch(s, false)
+	return m != nil
+}
 
-	for draft != nil && len(segments) > 0 {
-		draft, segments, strSegments = segments[0].Match(draft, segments[1:], strSegments)
+func (p *Path) FindSubmatch(s string) Match {
+	return p.getMatch(s, true)
+}
+
+func (p *Path) getMatch(s string, capture bool) Match {
+	strSegments := strings.Split(s, p.Seperator)
+	draft := NewMatchDraft(capture, p.match, p.Segments, strSegments)
+
+	for draft != nil && len(draft.segments) > 0 {
+		seg := draft.segments[0]
+		draft.segments = draft.segments[1:]
+		draft = seg.Match(draft)
 	}
-	if len(strSegments) > 0 || draft == nil {
+	if draft == nil || len(draft.strSegments) > 0 {
 		return nil
 	}
 	return draft.match
@@ -61,12 +71,12 @@ func (p *Path) IsStatic() bool {
 	return true
 }
 
-func MatchString(s string, options ...Option) (Match, error) {
+func MatchString(s string, options ...Option) (bool, error) {
 	p, err := Compile(s, options...)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	return p.MatchString(s), nil
+	return p.Match(s), nil
 }
 
 // /foo/*/bar/baz /foo/bar/foo/bar/baz
