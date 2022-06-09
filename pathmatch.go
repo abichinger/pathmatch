@@ -1,3 +1,18 @@
+// Package pathmatch allows you to quickly parse and match URL paths.
+//
+// Path expression are a composition of static, parameterized and wildcard segments.
+//
+// The wildcard * matches one or more segments.
+//
+//  /* / 		-> no match
+//  /* /foo 	-> * matches foo
+//  /* /foo/bar -> * matches foo/bar
+//
+// Parameterized segments start with a colon and have a name
+//
+//  /foo/:name 	/foo 		-> no match
+//  /foo/:name 	/foo/bar 	-> :name matches bar
+//
 package pathmatch
 
 import (
@@ -24,6 +39,7 @@ type Path struct {
 	save      *savePoint
 }
 
+// Compile parses a path expression and returns a Path if successful
 func Compile(path string, options ...Option) (*Path, error) {
 	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}}
 	for _, option := range options {
@@ -54,11 +70,15 @@ func Compile(path string, options ...Option) (*Path, error) {
 	return p, nil
 }
 
+// Match returns true if s and p match
 func (p *Path) Match(s string) bool {
 	m := p.getMatch(s, false)
 	return m != nil
 }
 
+// FindSubmatch returns a map with the values of parameterized segments, if s and p match
+// Otherwise nil is returned
+// Wildcard segments are named $0, $1, ...
 func (p *Path) FindSubmatch(s string) Match {
 	return p.getMatch(s, true)
 }
@@ -129,6 +149,7 @@ func (p *Path) getMatch(s string, capture bool) Match {
 	return draft.match
 }
 
+// IsStatic returns true if p only contains static segments
 func (p *Path) IsStatic() bool {
 	for _, seg := range p.Segments {
 		if seg.Type() != Static {
