@@ -3,7 +3,7 @@ package pathmatch_test
 import (
 	"testing"
 
-	"github.com/abichinger/pathmatch"
+	pm "github.com/abichinger/pathmatch"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +11,7 @@ func TestFindSubmatch(t *testing.T) {
 	tests := []struct {
 		path     string
 		str      string
-		expected pathmatch.Match
+		expected pm.Match
 	}{
 		{"/", "/", map[string]string{}},
 		{"/foo", "/foo", map[string]string{}},
@@ -24,10 +24,34 @@ func TestFindSubmatch(t *testing.T) {
 		{"/*", "/foo/bar", map[string]string{"$0": "foo/bar"}},
 		{"/foo/:id/bar/*", "/foo/1/bar/2/baz/3", map[string]string{"id": "1", "$0": "2/baz/3"}},
 		{"/*/bar/:id", "/foo/1/bar/2", map[string]string{"$0": "foo/1", "id": "2"}},
+		{"/*/foo/bar", "/api/foo/baz/foo/bar", map[string]string{"$0": "api/foo/baz"}},
+		{"/*/a/b/*/c/d", "/x/a/x/a/b/x/a/b/x/c/d", map[string]string{"$0": "x/a/x", "$1": "x/a/b/x"}},
 	}
 
 	for _, test := range tests {
-		p, err := pathmatch.Compile(test.path)
+		p, err := pm.Compile(test.path)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		actual := p.FindSubmatch(test.str)
+		assert.Equalf(t, test.expected, actual, "path: %s, str %s", test.path, test.path)
+		actualBool := p.Match(test.str)
+		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.path)
+	}
+}
+
+func TestOptions(t *testing.T) {
+	tests := []struct {
+		path     string
+		options  []pm.Option
+		str      string
+		expected pm.Match
+	}{
+		{"foo.{{name}}.**", []pm.Option{pm.SetSeperator("."), pm.SetPrefix("{{"), pm.SetSuffix("}}"), pm.SetWildcard("**")}, "foo.bar.baz", map[string]string{"name": "bar", "$0": "baz"}},
+	}
+
+	for _, test := range tests {
+		p, err := pm.Compile(test.path, test.options...)
 		if err != nil {
 			t.Errorf(err.Error())
 		}
