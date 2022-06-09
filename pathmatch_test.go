@@ -61,3 +61,25 @@ func TestOptions(t *testing.T) {
 		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.path)
 	}
 }
+
+func TestIsStatic(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"/", true},
+		{"/foo/bar", true},
+		{"/foo/:id", false},
+		{"/*", false},
+		{"/foo/:id/*", false},
+	}
+
+	for _, test := range tests {
+		p, err := pm.Compile(test.path)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		actual := p.IsStatic()
+		assert.Equalf(t, test.expected, actual, "path: %s", test.path)
+	}
+}
