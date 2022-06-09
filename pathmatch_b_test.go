@@ -9,25 +9,23 @@ import (
 
 func BenchmarkCompile(b *testing.B) {
 	benchmarks := []struct {
-		name  string
 		regex string
 		path  string
 	}{
 		{
-			"normal",
 			`foo/([^/]+)/bar/(.*)`,
 			"foo/:id/bar/*",
 		},
 	}
 
 	for _, benchmark := range benchmarks {
-		b.Run(benchmark.name+"-regex", func(b *testing.B) {
+		b.Run("regexp", func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _ = regexp.Compile(benchmark.regex)
 			}
 		})
-		b.Run(benchmark.name+"-path", func(b *testing.B) {
+		b.Run("pathmatch", func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _ = pathmatch.Compile(benchmark.path)
@@ -38,13 +36,11 @@ func BenchmarkCompile(b *testing.B) {
 
 func BenchmarkMatchString(b *testing.B) {
 	benchmarks := []struct {
-		name  string
 		regex string
 		path  string
 		str   string
 	}{
 		{
-			"normal",
 			`foo/([^/]+)/bar/(.*)`,
 			"foo/:id/bar/*",
 			"foo/1/bar/2/baz/3",
@@ -52,25 +48,62 @@ func BenchmarkMatchString(b *testing.B) {
 	}
 
 	for _, benchmark := range benchmarks {
-		b.Run(benchmark.name+"-regex", func(b *testing.B) {
+		b.Run("regexp", func(b *testing.B) {
 			r, err := regexp.Compile(benchmark.regex)
 			if err != nil {
 				b.Errorf(err.Error())
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				//_ = r.MatchString(benchmark.str)
-				_ = r.FindStringSubmatch(benchmark.str)
+				_ = r.MatchString(benchmark.str)
+				//_ = r.FindStringSubmatch(benchmark.str)
 			}
 		})
-		b.Run(benchmark.name+"-path", func(b *testing.B) {
+		b.Run("pathmatch", func(b *testing.B) {
 			p, err := pathmatch.Compile(benchmark.path)
 			if err != nil {
 				b.Errorf(err.Error())
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				//_ = p.Match(benchmark.str)
+				_ = p.Match(benchmark.str)
+				//_ = p.FindSubmatch(benchmark.str)
+			}
+		})
+	}
+}
+
+func BenchmarkFindSubmatch(b *testing.B) {
+	benchmarks := []struct {
+		regex string
+		path  string
+		str   string
+	}{
+		{
+			`foo/([^/]+)/bar/(.*)`,
+			"foo/:id/bar/*",
+			"foo/1/bar/2/baz/3",
+		},
+	}
+
+	for _, benchmark := range benchmarks {
+		b.Run("regexp", func(b *testing.B) {
+			r, err := regexp.Compile(benchmark.regex)
+			if err != nil {
+				b.Errorf(err.Error())
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = r.FindStringSubmatch(benchmark.str)
+			}
+		})
+		b.Run("pathmatch", func(b *testing.B) {
+			p, err := pathmatch.Compile(benchmark.path)
+			if err != nil {
+				b.Errorf(err.Error())
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
 				_ = p.FindSubmatch(benchmark.str)
 			}
 		})

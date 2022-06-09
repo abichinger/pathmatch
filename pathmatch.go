@@ -26,7 +26,7 @@ func Compile(path string, options ...Option) (*Path, error) {
 	strSegments := strings.Split(path, p.Seperator)
 	for _, strSeg := range strSegments {
 		if strSeg == p.Wildcard {
-			p.Segments = append(p.Segments, NewWildcardSegment(p.Seperator))
+			p.Segments = append(p.Segments, NewWildcardSegment())
 		} else if (p.Prefix == "" || strings.HasPrefix(strSeg, p.Prefix)) && (p.Suffix == "" || strings.HasSuffix(strSeg, p.Suffix)) {
 			key := strSeg[len(p.Prefix) : len(strSeg)-len(p.Suffix)]
 			p.Segments = append(p.Segments, NewParamSegment(key))
@@ -48,15 +48,14 @@ func (p *Path) FindSubmatch(s string) Match {
 }
 
 func (p *Path) getMatch(s string, capture bool) Match {
-	strSegments := strings.Split(s, p.Seperator)
-	draft := NewMatchDraft(capture, p.match, p.Segments, strSegments)
+	draft := NewMatchDraft(capture, p.match, p.Segments, s, p.Seperator)
 
 	for draft != nil && len(draft.segments) > 0 {
 		seg := draft.segments[0]
 		draft.segments = draft.segments[1:]
 		draft = seg.Match(draft)
 	}
-	if draft == nil || len(draft.strSegments) > 0 {
+	if draft == nil || len(draft.str) > 0 {
 		return nil
 	}
 	return draft.match
@@ -70,13 +69,3 @@ func (p *Path) IsStatic() bool {
 	}
 	return true
 }
-
-func MatchString(s string, options ...Option) (bool, error) {
-	p, err := Compile(s, options...)
-	if err != nil {
-		return false, err
-	}
-	return p.Match(s), nil
-}
-
-// /foo/*/bar/baz /foo/bar/foo/bar/baz
