@@ -2,19 +2,19 @@ package pathmatch
 
 type SegType int
 
-type MatchDraft struct {
+type matchDraft struct {
 	capture bool
 	match   Match
 }
 
-func NewMatchDraft(capture bool, match Match) *MatchDraft {
+func newMatchDraft(capture bool, match Match) *matchDraft {
 	if !capture {
-		return &MatchDraft{capture, match}
+		return &matchDraft{capture, match}
 	}
-	return &MatchDraft{capture, make(Match)}
+	return &matchDraft{capture, make(Match)}
 }
 
-func (m *MatchDraft) Set(key, value string) {
+func (m *matchDraft) set(key, value string) {
 	if !m.capture {
 		return
 	}
@@ -28,73 +28,81 @@ const (
 )
 
 type ISegment interface {
-	//returns m if the segment matches s,
-	Match(m *MatchDraft, s string) *MatchDraft
+	// Match returns m if the segment matches s,
+	Match(m *matchDraft, s string) *matchDraft
+
+	// Type returns the segment type
 	Type() SegType
+
+	// Multiple returns true, if the segment can match one or more string segments
 	Multiple() bool
 }
 
-type StaticSegment struct {
+type staticSegment struct {
 	value string
 }
 
-func NewStaticSegment(value string) *StaticSegment {
-	return &StaticSegment{value}
+func newStaticSegment(value string) *staticSegment {
+	return &staticSegment{value}
 }
 
-func (seg *StaticSegment) Type() SegType {
+func (seg *staticSegment) Type() SegType {
 	return Static
 }
 
-func (seg *StaticSegment) Match(m *MatchDraft, s string) *MatchDraft {
+func (seg *staticSegment) Match(m *matchDraft, s string) *matchDraft {
 	if s != seg.value {
 		return nil
 	}
 	return m
 }
 
-func (seg *StaticSegment) Multiple() bool {
+func (seg *staticSegment) Multiple() bool {
 	return false
 }
 
-type ParamSegment struct {
-	key string
+type paramSegment struct {
+	key        string
+	equalCheck bool
 }
 
-func NewParamSegment(key string) *ParamSegment {
-	return &ParamSegment{key}
+func newParamSegment(key string, equalCheck bool) *paramSegment {
+	return &paramSegment{key, equalCheck}
 }
 
-func (seg *ParamSegment) Type() SegType {
+func (seg *paramSegment) Type() SegType {
 	return Parameterized
 }
 
-func (seg *ParamSegment) Match(m *MatchDraft, s string) *MatchDraft {
-	m.Set(seg.key, s)
+func (seg *paramSegment) Match(m *matchDraft, s string) *matchDraft {
+	if value, ok := m.match[seg.key]; seg.equalCheck && ok && s != value {
+		return nil
+	}
+	m.set(seg.key, s)
 	return m
 }
 
-func (seg *ParamSegment) Multiple() bool {
+func (seg *paramSegment) Multiple() bool {
 	return false
 }
 
-type WildcardSegment struct {
+type wildcardSegment struct {
 	key string
 }
 
-func NewWildcardSegment(key string) *WildcardSegment {
-	return &WildcardSegment{key}
+func newWildcardSegment(key string) *wildcardSegment {
+	return &wildcardSegment{key}
 }
 
-func (seg *WildcardSegment) Type() SegType {
+func (seg *wildcardSegment) Type() SegType {
 	return Wildcard
 }
 
-func (seg *WildcardSegment) Match(m *MatchDraft, s string) *MatchDraft {
-	m.Set(seg.key, s)
+func (seg *wildcardSegment) Match(m *matchDraft, s string) *matchDraft {
+	m.set(seg.key, s)
 	return m
 }
 
-func (seg *WildcardSegment) Multiple() bool {
+func (seg *wildcardSegment) Multiple() bool {
 	return true
 }

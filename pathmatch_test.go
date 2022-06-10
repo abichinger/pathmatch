@@ -19,7 +19,7 @@ func TestFindSubmatch(t *testing.T) {
 		{"/foo/:id", "/foo/1", map[string]string{"id": "1"}},
 		{"/foo/:id", "/foo/1/bar", nil},
 		{"/foo/:id/bar/:name", "/foo/1/bar/tom", map[string]string{"id": "1", "name": "tom"}},
-		//{"/foo/:id/bar/:id", "/foo/1/bar/tom", false},
+		{"/foo/:id/bar/:id", "/foo/1/bar/2", map[string]string{"id": "2"}},
 		{"/foo/:id/bar/:id", "/foo/1/bar/1", map[string]string{"id": "1"}},
 		{"/*", "/foo/bar", map[string]string{"$0": "foo/bar"}},
 		{"/foo/:id/bar/*", "/foo/1/bar/2/baz/3", map[string]string{"id": "1", "$0": "2/baz/3"}},
@@ -34,9 +34,9 @@ func TestFindSubmatch(t *testing.T) {
 			t.Errorf(err.Error())
 		}
 		actual := p.FindSubmatch(test.str)
-		assert.Equalf(t, test.expected, actual, "path: %s, str %s", test.path, test.path)
+		assert.Equalf(t, test.expected, actual, "path: %s, str %s", test.path, test.str)
 		actualBool := p.Match(test.str)
-		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.path)
+		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.str)
 	}
 }
 
@@ -48,6 +48,8 @@ func TestOptions(t *testing.T) {
 		expected pm.Match
 	}{
 		{"foo.{{name}}.**", []pm.Option{pm.SetSeperator("."), pm.SetPrefix("{{"), pm.SetSuffix("}}"), pm.SetWildcard("**")}, "foo.bar.baz", map[string]string{"name": "bar", "$0": "baz"}},
+		{"/foo/:id/bar/:id", []pm.Option{pm.EnableEqualityCheck(true)}, "/foo/1/bar/2", nil},
+		{"/foo/:id/bar/:id", []pm.Option{pm.EnableEqualityCheck(true)}, "/foo/1/bar/1", map[string]string{"id": "1"}},
 	}
 
 	for _, test := range tests {
@@ -56,9 +58,9 @@ func TestOptions(t *testing.T) {
 			t.Errorf(err.Error())
 		}
 		actual := p.FindSubmatch(test.str)
-		assert.Equalf(t, test.expected, actual, "path: %s, str %s", test.path, test.path)
+		assert.Equalf(t, test.expected, actual, "path: %s, str %s", test.path, test.str)
 		actualBool := p.Match(test.str)
-		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.path)
+		assert.Equalf(t, test.expected != nil, actualBool, "path: %s, str %s", test.path, test.str)
 	}
 }
 

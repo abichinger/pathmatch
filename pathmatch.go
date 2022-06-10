@@ -30,18 +30,20 @@ type savePoint struct {
 }
 
 type Path struct {
-	Seperator string
-	Prefix    string
-	Suffix    string
-	Wildcard  string
-	Segments  []ISegment
-	match     Match
-	save      *savePoint
+	Seperator  string
+	Prefix     string
+	Suffix     string
+	Wildcard   string
+	Segments   []ISegment
+	match      Match
+	save       *savePoint
+	equalCheck bool
 }
 
 // Compile parses a path expression and returns a Path if successful
 func Compile(path string, options ...Option) (*Path, error) {
-	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}}
+	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}, false}
+
 	for _, option := range options {
 		if err := option(p); err != nil {
 			return nil, err
@@ -54,16 +56,16 @@ func Compile(path string, options ...Option) (*Path, error) {
 		if strSeg == p.Wildcard {
 			key := "$" + strconv.Itoa(unnamed)
 			unnamed++
-			p.Segments = append(p.Segments, NewWildcardSegment(key))
+			p.Segments = append(p.Segments, newWildcardSegment(key))
 		} else if (p.Prefix == "" || strings.HasPrefix(strSeg, p.Prefix)) && (p.Suffix == "" || strings.HasSuffix(strSeg, p.Suffix)) {
 			key := strSeg[len(p.Prefix) : len(strSeg)-len(p.Suffix)]
 			if key == "" {
 				key = "$" + strconv.Itoa(unnamed)
 				unnamed++
 			}
-			p.Segments = append(p.Segments, NewParamSegment(key))
+			p.Segments = append(p.Segments, newParamSegment(key, p.equalCheck))
 		} else {
-			p.Segments = append(p.Segments, NewStaticSegment(strSeg))
+			p.Segments = append(p.Segments, newStaticSegment(strSeg))
 		}
 	}
 
@@ -72,7 +74,7 @@ func Compile(path string, options ...Option) (*Path, error) {
 
 // Match returns true if s and p match
 func (p *Path) Match(s string) bool {
-	m := p.getMatch(s, false)
+	m := p.getMatch(s, false || p.equalCheck)
 	return m != nil
 }
 
@@ -100,7 +102,7 @@ func segmentLen(s string, sep string, done bool) int {
 }
 
 func (p *Path) getMatch(s string, capture bool) Match {
-	draft := NewMatchDraft(capture, p.match)
+	draft := newMatchDraft(capture, p.match)
 
 	sIndex := 0
 	searchStart := 0
