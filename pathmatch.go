@@ -1,8 +1,8 @@
 // Package pathmatch allows you to quickly parse and match URL paths.
 //
-// Path expression are a composition of static, parameterized and wildcard segments.
+// Path expression are a composition of different segments.
 //
-// Parameterized segments start with a colon and have a name
+// Parameterized segments start with a colon followed by a name
 //
 //  path			string		result
 //  /foo/:name 		/foo 		nil
@@ -13,7 +13,7 @@
 // A suffix must be set, in order to match parameters, which are followed by an alphanumeric sequence,
 //
 //  path					string				result									options
-//  /index.:ext?:p1=:v1		/index.html?x=1		{"ext": "html", "p1": "x", "v1": "1"}	default
+//  /index.:ext?:p1=:v1		/index.html?x=1		{"ext": "html", "p1": "x", "v1": "1"}	none
 //	/{start}def				/abcdef				{"start": "abc"}						prefix: "{", suffix: "}"
 //
 // The wildcard * matches one or more segments.
@@ -21,7 +21,7 @@
 //  path	string		result
 //  /* 		/foo 		{"$1": "foo"}
 //  /* 		/foo/bar  	{"$1": "foo/bar"}
-
+//
 package pathmatch
 
 import (
