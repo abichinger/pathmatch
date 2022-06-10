@@ -2,20 +2,31 @@
 //
 // Path expression are a composition of static, parameterized and wildcard segments.
 //
-// The wildcard * matches one or more segments.
-//
-//  /* / 		-> no match
-//  /* /foo 	-> * matches foo
-//  /* /foo/bar -> * matches foo/bar
-//
 // Parameterized segments start with a colon and have a name
 //
-//  /foo/:name 	/foo 		-> no match
-//  /foo/:name 	/foo/bar 	-> :name matches bar
+//  path			string		result
+//  /foo/:name 		/foo 		nil
+//  /foo/:name 		/foo/bar  	{"name": "bar"}
 //
+// Mixed segments can contain static and variable parts
+// The end of a parameter name is detected by the following special characters: .?=&#:
+// A suffix must be set, in order to match parameters, which are followed by an alphanumeric sequence,
+//
+//  path					string				result									options
+//  /index.:ext?:p1=:v1		/index.html?x=1		{"ext": "html", "p1": "x", "v1": "1"}	default
+//	/{start}def				/abcdef				{"start": "abc"}						prefix: "{", suffix: "}"
+//
+// The wildcard * matches one or more segments.
+//
+//  path	string		result
+//  /* 		/foo 		{"$1": "foo"}
+//  /* 		/foo/bar  	{"$1": "foo/bar"}
+
 package pathmatch
 
 import (
+	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -30,18 +41,22 @@ type savePoint struct {
 }
 
 type Path struct {
-	Seperator string
-	Prefix    string
-	Suffix    string
-	Wildcard  string
-	Segments  []ISegment
-	match     Match
-	save      *savePoint
+	Seperator  string
+	Prefix     string
+	Suffix     string
+	Wildcard   string
+	Segments   []ISegment
+	match      Match
+	save       *savePoint
+	equalCheck bool
 }
+
+var except = regexp.MustCompile(`[^.?=&#:]+`)
 
 // Compile parses a path expression and returns a Path if successful
 func Compile(path string, options ...Option) (*Path, error) {
-	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}}
+	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}, false}
+
 	for _, option := range options {
 		if err := option(p); err != nil {
 			return nil, err
@@ -54,16 +69,50 @@ func Compile(path string, options ...Option) (*Path, error) {
 		if strSeg == p.Wildcard {
 			key := "$" + strconv.Itoa(unnamed)
 			unnamed++
-			p.Segments = append(p.Segments, NewWildcardSegment(key))
-		} else if (p.Prefix == "" || strings.HasPrefix(strSeg, p.Prefix)) && (p.Suffix == "" || strings.HasSuffix(strSeg, p.Suffix)) {
-			key := strSeg[len(p.Prefix) : len(strSeg)-len(p.Suffix)]
-			if key == "" {
-				key = "$" + strconv.Itoa(unnamed)
-				unnamed++
+			p.Segments = append(p.Segments, newWildcardSegment(key))
+		} else if iPrefix := strings.Index(strSeg, p.Prefix); iPrefix != -1 {
+
+			var key string
+			keyLocs := []int{} //locations including suffix and prefix
+			keys := []string{}
+
+			for iPrefix != -1 {
+				keyStart := iPrefix + len(p.Prefix)
+				if p.Suffix != "" {
+					iSuffix := strings.Index(strSeg[iPrefix:], p.Suffix)
+					if iSuffix == -1 {
+						return nil, fmt.Errorf("pathmatch: %s, suffix \"%s\" not found", strSeg, p.Suffix)
+					}
+					key = strSeg[keyStart : iPrefix+iSuffix]
+					keyLocs = append(keyLocs, iPrefix, iPrefix+iSuffix+len(p.Suffix))
+				} else {
+					keyLoc := except.FindStringIndex(strSeg[keyStart:])
+					if keyLoc == nil || keyLoc[0] != 0 {
+						return nil, fmt.Errorf("pathmatch: %s, prefix \"%s\" must be followed by name", strSeg, p.Suffix)
+					}
+					key = strSeg[keyStart : keyStart+keyLoc[1]]
+					keyLocs = append(keyLocs, iPrefix, keyStart+keyLoc[1])
+				}
+				keys = append(keys, key)
+				iPrefix = strings.Index(strSeg[keyStart:], p.Prefix)
+				if iPrefix == -1 {
+					break
+				}
+				iPrefix += keyStart
 			}
-			p.Segments = append(p.Segments, NewParamSegment(key))
+
+			if len(keyLocs) == 2 && keyLocs[1]-keyLocs[0] == len(strSeg) {
+				p.Segments = append(p.Segments, newParamSegment(key, p.equalCheck))
+				continue
+			}
+
+			mixed, err := newMixedSegment(strSeg, keys, keyLocs)
+			if err != nil {
+				return nil, err
+			}
+			p.Segments = append(p.Segments, mixed)
 		} else {
-			p.Segments = append(p.Segments, NewStaticSegment(strSeg))
+			p.Segments = append(p.Segments, newStaticSegment(strSeg))
 		}
 	}
 
@@ -72,7 +121,7 @@ func Compile(path string, options ...Option) (*Path, error) {
 
 // Match returns true if s and p match
 func (p *Path) Match(s string) bool {
-	m := p.getMatch(s, false)
+	m := p.getMatch(s, false || p.equalCheck)
 	return m != nil
 }
 
@@ -100,7 +149,7 @@ func segmentLen(s string, sep string, done bool) int {
 }
 
 func (p *Path) getMatch(s string, capture bool) Match {
-	draft := NewMatchDraft(capture, p.match)
+	draft := newMatchDraft(capture, p.match)
 
 	sIndex := 0
 	searchStart := 0
