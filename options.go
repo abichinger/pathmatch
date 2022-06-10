@@ -1,5 +1,7 @@
 package pathmatch
 
+import "errors"
+
 type Option func(p *Path) error
 
 // SetSeperator specifies the seperator of a path, default: "/"
@@ -23,6 +25,9 @@ func SetWildcard(wildcard string) Option {
 // default: ":"
 func SetPrefix(prefix string) Option {
 	return func(p *Path) error {
+		if prefix == "" {
+			return errors.New("pathmatch: prefix can't be an empty string")
+		}
 		p.Prefix = prefix
 		return nil
 	}

@@ -1,5 +1,10 @@
 package pathmatch
 
+import (
+	"errors"
+	"strings"
+)
+
 type SegType int
 
 type matchDraft struct {
@@ -25,6 +30,7 @@ const (
 	Static SegType = iota
 	Parameterized
 	Wildcard
+	Mixed
 )
 
 type ISegment interface {
@@ -105,4 +111,61 @@ func (seg *wildcardSegment) Match(m *matchDraft, s string) *matchDraft {
 
 func (seg *wildcardSegment) Multiple() bool {
 	return true
+}
+
+type mixedSegment struct {
+	keys   []string
+	static []string
+}
+
+func newMixedSegment(s string, keys []string, locs []int) (*mixedSegment, error) {
+	static := []string{}
+	start := 0
+
+	for i := 0; i < len(keys); i++ {
+		if i > 0 && s[start:locs[i*2]] == "" {
+			return nil, errors.New("pathmatch: %s, no character between keys")
+		}
+		static = append(static, s[start:locs[i*2]])
+		start = locs[i*2+1]
+	}
+	lastLoc := locs[len(locs)-1]
+	static = append(static, s[lastLoc:])
+
+	return &mixedSegment{keys, static}, nil
+}
+
+func (seg *mixedSegment) Type() SegType {
+	return Mixed
+}
+
+func (seg *mixedSegment) Match(m *matchDraft, s string) *matchDraft {
+
+	keyEnd := 0
+	for i, key := range seg.keys {
+		start := strings.Index(s[keyEnd:], seg.static[i])
+		if start != 0 {
+			return nil
+		}
+		start += keyEnd
+		keyStart := start + len(seg.static[i])
+		keyLen := strings.Index(s[keyStart:], seg.static[i+1])
+		if seg.static[i+1] == "" {
+			keyLen = len(s[keyStart:])
+		}
+		if keyLen == -1 {
+			return nil
+		}
+		keyEnd = keyStart + keyLen
+		m.set(key, s[keyStart:keyEnd])
+	}
+	lastStatic := seg.static[len(seg.static)-1]
+	if len(s) != keyEnd+len(lastStatic) {
+		return nil
+	}
+	return m
+}
+
+func (seg *mixedSegment) Multiple() bool {
+	return false
 }
