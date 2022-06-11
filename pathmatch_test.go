@@ -15,7 +15,10 @@ func TestFindSubmatch(t *testing.T) {
 	}{
 		{"", "", map[string]string{}},
 		{"/", "/", map[string]string{}},
+		{"/", "", nil},
+		{"", "/", nil},
 		{"/foo", "/foo", map[string]string{}},
+		{"/foo", "/foo/", nil},
 		{"/foo", "/bar", nil},
 		{"/foo/bar", "/foo", nil},
 		{"/foo/:id", "/foo/1", map[string]string{"id": "1"}},

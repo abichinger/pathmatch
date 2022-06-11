@@ -14,7 +14,7 @@
 //
 //  path					string				result									options
 //  /index.:ext?:p1=:v1		/index.html?x=1		{"ext": "html", "p1": "x", "v1": "1"}	none
-//	/{start}def				/abcdef				{"start": "abc"}						prefix: "{", suffix: "}"
+//  /{start}def				/abcdef				{"start": "abc"}						prefix: "{", suffix: "}"
 //
 // The wildcard * matches one or more segments.
 //
@@ -41,6 +41,7 @@ type savePoint struct {
 }
 
 type Path struct {
+	path       string
 	Seperator  string
 	Prefix     string
 	Suffix     string
@@ -55,7 +56,7 @@ var except = regexp.MustCompile(`[^.?=&#:]+`)
 
 // Compile parses a path expression and returns a Path if successful
 func Compile(path string, options ...Option) (*Path, error) {
-	p := &Path{"/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}, false}
+	p := &Path{path, "/", ":", "", "*", []ISegment{}, make(Match, 0), &savePoint{}, false}
 
 	for _, option := range options {
 		if err := option(p); err != nil {
@@ -191,6 +192,10 @@ func (p *Path) getMatch(s string, capture bool) Match {
 		draft = m
 		sIndex += segmentLen(str, p.Seperator, done)
 		searchStart = 0
+
+		if len(p.Segments)-1 == i && !done {
+			return nil
+		}
 	}
 	if draft == nil || len(s) != sIndex {
 		return nil
